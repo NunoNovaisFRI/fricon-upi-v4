@@ -1,0 +1,22 @@
+{
+  "light": {
+    "background": "#ffffff",
+    "cards": "#f8f9fa",
+    "text": "#212529",
+    "success": "#28a745",
+    "warning": "#ffc107",
+    "danger": "#dc3545",
+    "primary": "#0d6efd",
+    "secondary": "#6c757d"
+  },
+  "dark": {
+    "background": "#121212",
+    "cards": "#1e1e1e",
+    "text": "#e9ecef",
+    "success": "#28a745",
+    "warning": "#ffc107",
+    "danger": "#dc3545",
+    "primary": "#0d6efd",
+    "secondary": "#6c757d"
+  }
+}

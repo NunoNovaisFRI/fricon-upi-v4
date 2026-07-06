@@ -4,7 +4,7 @@ Production KPI Management System
 
 ## Overview
 
-Fricon UPI v4 is a refactored and modularized version of the production KPI management application. This version implements a modern, service-oriented architecture while maintaining 100% backward compatibility with existing Excel files and functionality.
+Fricon UPI v4 is a refactored and modularized version of the production KPI management application. This version implements a modern, service-oriented architecture while maintaining 100% backward c[...]
 
 ## Features
 
@@ -30,7 +30,7 @@ src/
 │   └── responsive.css        # Responsive design
 ├── js/
 │   ├── app.js                # Application entry point
-│   ├── config.js             # Configuration
+│   ├── config.js             # Legacy / compatibility configuration
 │   ├── state.js              # Global application state
 │   ├── services/
 │   │   ├── excel.service.js          # Excel file handling
@@ -92,12 +92,7 @@ src/
 
 ### Configuration
 
-Edit `src/js/config.js` to customize:
-- Application version and company name
-- Alert limits and thresholds
-- Date and number formats
-- Export options
-- Auto-save settings
+Edit `src/js/config.js` to customize legacy configuration used by older modules. For the new centralized Configuration Engine (recommended), see the "Configuration Engine" section below.
 
 ## Architecture
 
@@ -140,27 +135,56 @@ logger.warn('Warning message');
 logger.error('Error message');
 ```
 
-## Development
+## Configuration Engine (centralized)
 
-### Adding New Services
+Starting in this branch, the project includes a centralized Configuration Engine that replaces the need to scatter configuration values across the codebase. The legacy `src/js/config.js` file is kept for backward compatibility but new development should use the ConfigService.
 
-1. Create new service file in `src/js/services/`
-2. Export class with static methods
-3. Add JSDoc documentation
-4. Import and use in app.js
+Files added
+- `src/config/config.json` — default configuration (loaded at runtime)
+- `src/config/settings.schema.json` — JSON Schema used to validate configuration
+- `src/config/themes.json` — theme palette definitions (light and dark)
+- `src/js/services/config.service.js` — ConfigService implementation (ES module)
 
-### Adding New UI Components
+Local persistence
+- User overrides are stored in `localStorage` under key: `fricon_config_overrides`.
 
-1. Create new component file in `src/js/ui/`
-2. Implement render() method
-3. Use AppState for data access
-4. Import and use in dashboard.js
+API (ConfigService)
+- `load(): Promise<object>` — Load defaults + schema and apply overrides from localStorage.
+- `save(): void` — Persist current overrides.
+- `reload(): Promise<object>` — Reload defaults and reapply overrides.
+- `get(path: string): any` — Read value by dot-path (e.g. `dashboard.theme`).
+- `set(path: string, value: any): {valid:boolean, errors?:string[]}` — Set a value (validates full config and persists override on success).
+- `reset(): Promise<object>` — Clear overrides and reload defaults.
+- `validate(obj: object): {valid:boolean, errors:string[]}` — Validate an object against the JSON Schema.
+- `export(pretty = true): string` — Export current merged configuration as JSON.
+- `import(jsonOrObj): {valid:boolean, errors?:string[]}` — Import a full configuration (validated and applied as overrides).
 
-### Adding New Utilities
+Usage examples
 
-1. Create new utility file in `src/js/utils/`
-2. Export functions with JSDoc
-3. Import where needed
+```javascript
+import ConfigService from './js/services/config.service.js';
+
+// Ensure configuration is loaded (async)
+await ConfigService.load();
+
+// Read value
+const theme = ConfigService.get('dashboard.theme'); // 'light'
+
+// Set and persist an override
+const res = ConfigService.set('dashboard.theme', 'dark');
+if (!res.valid) console.warn('Validation errors', res.errors);
+
+// Export current config
+const json = ConfigService.export();
+
+// Reset to defaults
+await ConfigService.reset();
+```
+
+Notes for developers
+- The service exports both the default singleton and the class (for unit-testing):
+  `import ConfigService, { ConfigServiceClass } from './js/services/config.service.js';`
+- For unit tests instantiate with `new ConfigServiceClass({ autoLoad: false, configUrl: '/test/fixtures/config.json', schemaUrl: '/test/fixtures/schema.json' })` and mock `fetch` and `localStorage` as needed.
 
 ## Compatibility
 
