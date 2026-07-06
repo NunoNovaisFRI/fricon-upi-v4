@@ -1,0 +1,135 @@
+/* Main Stylesheet */
+
+:root {
+  --primary-color: #0d6efd;
+  --secondary-color: #6c757d;
+  --success-color: #198754;
+  --danger-color: #dc3545;
+  --warning-color: #ffc107;
+  --info-color: #0dcaf0;
+  --light-color: #f8f9fa;
+  --dark-color: #212529;
+  --border-radius: 0.25rem;
+  --shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--light-color);
+  color: var(--dark-color);
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+
+/* Layout */
+.container-fluid {
+  padding: 0;
+}
+
+/* Cards */
+.card {
+  border: none;
+  box-shadow: var(--shadow);
+  border-radius: var(--border-radius);
+  margin-bottom: 1rem;
+}
+
+.card-header {
+  background-color: var(--light-color);
+  border-bottom: 1px solid #dee2e6;
+  padding: 1rem;
+}
+
+.card-body {
+  padding: 1.5rem;
+}
+
+/* Buttons */
+.btn {
+  border-radius: var(--border-radius);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+}
+
+/* Tables */
+table {
+  margin-bottom: 0;
+}
+
+table thead th {
+  background-color: var(--light-color);
+  border-color: #dee2e6;
+  font-weight: 600;
+  padding: 1rem;
+}
+
+table tbody td {
+  padding: 0.75rem 1rem;
+  border-color: #dee2e6;
+}
+
+table tbody tr:hover {
+  background-color: rgba(13, 110, 253, 0.05);
+}
+
+/* Forms */
+.form-control {
+  border-radius: var(--border-radius);
+  border: 1px solid #dee2e6;
+}
+
+.form-control:focus {
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 0.2rem rgba(13, 110, 253, 0.25);
+}
+
+/* Alerts */
+.alert {
+  border-radius: var(--border-radius);
+  border: none;
+  margin-bottom: 1rem;
+}
+
+/* Utilities */
+.mb-1 { margin-bottom: 0.25rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 1rem; }
+.mb-4 { margin-bottom: 1.5rem; }
+.mb-5 { margin-bottom: 3rem; }
+
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.mt-3 { margin-top: 1rem; }
+.mt-4 { margin-top: 1.5rem; }
+.mt-5 { margin-top: 3rem; }
+
+.text-center { text-align: center; }
+.text-end { text-align: end; }
+.text-muted { color: var(--secondary-color); }
+
+/* Loading */
+.dashboard-loader {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.spinner-border {
+  color: var(--primary-color);
+}

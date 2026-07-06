@@ -1,0 +1,42 @@
+/* Responsive Design */
+
+/* Small devices */
+@media (max-width: 576px) {
+  .container-fluid {
+    padding: 0 10px;
+  }
+  
+  main {
+    padding: 1rem 0;
+  }
+  
+  .card {
+    margin-bottom: 0.75rem;
+  }
+  
+  .navbar {
+    padding: 0.5rem 1rem;
+  }
+}
+
+/* Medium devices */
+@media (max-width: 768px) {
+  .kpi-cards-container {
+    gap: 1rem;
+  }
+}
+
+/* Large devices */
+@media (min-width: 1200px) {
+  main {
+    padding: 2rem;
+  }
+}
+
+/* Ultra-wide screens */
+@media (min-width: 1400px) {
+  .container-fluid {
+    max-width: 1320px;
+    margin: 0 auto;
+  }
+}

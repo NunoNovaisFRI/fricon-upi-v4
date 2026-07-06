@@ -1,0 +1,24 @@
+{
+  "name": "fricon-upi-v4",
+  "version": "4.0.0",
+  "description": "Fricon UPI - Production KPI Management System",
+  "type": "module",
+  "main": "src/index.html",
+  "scripts": {
+    "start": "python -m http.server 8000 --directory src",
+    "dev": "python -m http.server 8000 --directory src",
+    "build": "echo 'Build script placeholder'",
+    "test": "echo 'Test script placeholder'",
+    "lint": "echo 'Lint script placeholder'"
+  },
+  "keywords": [
+    "kpi",
+    "production",
+    "dashboard",
+    "analytics"
+  ],
+  "author": "Fricon",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {}
+}
