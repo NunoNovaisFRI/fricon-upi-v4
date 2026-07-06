@@ -1,0 +1,45 @@
+{
+  "application": {
+    "name": "Fricon Production Intelligence Platform",
+    "shortName": "Fricon PIP",
+    "version": "4.1.0",
+    "environment": "development",
+    "language": "pt-PT",
+    "timezone": "Europe/Lisbon"
+  },
+
+  "company": {
+    "name": "Fricon"
+  },
+
+  "dashboard": {
+    "theme": "light",
+    "refreshInterval": 300
+  },
+
+  "report": {
+    "title": "Resumo Diário Produção",
+    "decimalPlaces": 2
+  },
+
+  "alerts": {
+    "enabled": true,
+    "warningThreshold": 10,
+    "criticalThreshold": 0
+  },
+
+  "powerAutomate": {
+    "enabled": false,
+    "flowUrl": ""
+  },
+
+  "email": {
+    "enabled": true,
+    "sender": "",
+    "defaultRecipients": []
+  },
+
+  "logging": {
+    "level": "info"
+  }
+}
