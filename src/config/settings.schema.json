@@ -1,0 +1,72 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Fricon UPI Configuration Schema",
+  "type": "object",
+  "required": ["application", "company", "dashboard", "report", "alerts", "logging"],
+  "properties": {
+    "application": {
+      "type": "object",
+      "required": ["name", "shortName", "version", "environment", "language", "timezone"],
+      "properties": {
+        "name": { "type": "string" },
+        "shortName": { "type": "string" },
+        "version": { "type": "string" },
+        "environment": { "type": "string", "enum": ["development", "test", "production"] },
+        "language": { "type": "string" },
+        "timezone": { "type": "string" }
+      }
+    },
+    "company": {
+      "type": "object",
+      "required": ["name"],
+      "properties": { "name": { "type": "string" } }
+    },
+    "dashboard": {
+      "type": "object",
+      "required": ["theme", "refreshInterval"],
+      "properties": {
+        "theme": { "type": "string", "enum": ["light", "dark"] },
+        "refreshInterval": { "type": "number", "minimum": 0 }
+      }
+    },
+    "report": {
+      "type": "object",
+      "required": ["title", "decimalPlaces"],
+      "properties": {
+        "title": { "type": "string" },
+        "decimalPlaces": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "alerts": {
+      "type": "object",
+      "required": ["enabled", "warningThreshold", "criticalThreshold"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "warningThreshold": { "type": "number" },
+        "criticalThreshold": { "type": "number" }
+      }
+    },
+    "powerAutomate": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "flowUrl": { "type": "string" }
+      }
+    },
+    "email": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "sender": { "type": "string" },
+        "defaultRecipients": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "logging": {
+      "type": "object",
+      "required": ["level"],
+      "properties": {
+        "level": { "type": "string", "enum": ["debug", "info", "warn", "error"] }
+      }
+    }
+  }
+}
