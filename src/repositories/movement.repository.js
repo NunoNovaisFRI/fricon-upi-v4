@@ -3,42 +3,59 @@ const { RepositoryInterface } = require('../interfaces/repository.interface');
 /**
  * MovementRepository
  * 
- * Implements the Repository Pattern for Movement records.
- * Centralized data access layer with Map-based indexing for performance.
+ * Core data access layer for inventory movements.
  * 
- * Features:
- * - 13 different indexes for O(1) lookups
- * - Query API: find*, groupBy*, statistics, search, top*
+ * Single source of truth for all MovementRecord data.
+ * 
+ * Responsibilities:
+ * - Store and manage MovementRecord instances
+ * - Build and maintain indexes for fast lookups
+ * - Provide query methods
+ * - Calculate statistics and aggregations
+ * - Hide internal data structure completely
+ * 
+ * Architecture:
+ * - Internal storage: array of MovementRecord
+ * - Indexes: Map objects for O(1) lookups on key fields
+ * - Immutability: All public find methods return new arrays
+ * 
+ * Performance:
  * - Optimized for 100k+ records
- * - Immutable query results (shallow copies)
- * - Complete logging
+ * - Index-based lookups instead of array iterations
+ * - Lazy aggregation (calculated on demand)
+ * - No unnecessary array clones
  */
 class MovementRepository extends RepositoryInterface {
   constructor() {
     super();
+
+    // Primary storage
     this._records = [];
-    this._loaded = false;
-    
-    // Map-based indexes for fast lookups
-    this._indexes = {
-      date: new Map(),           // YYYY-MM-DD -> records[]
-      operator: new Map(),       // operator name -> records[]
-      article: new Map(),        // article code -> records[]
-      articleName: new Map(),    // article name -> records[]
-      warehouse: new Map(),      // warehouse name -> records[]
-      zone: new Map(),           // zone name -> records[]
-      shelf: new Map(),          // shelf name -> records[]
-      movementType: new Map(),   // movement type -> records[]
-      document: new Map(),       // document number -> records[]
-      batch: new Map(),          // batch code -> records[]
-      department: new Map(),     // department name -> records[]
-      barcode: new Map(),        // barcode -> records[]
-    };
+
+    // Indexes for fast lookups (Map for O(1) access)
+    this._indexOperator = new Map();
+    this._indexArticleCode = new Map();
+    this._indexArticleName = new Map();
+    this._indexWarehouse = new Map();
+    this._indexZone = new Map();
+    this._indexShelf = new Map();
+    this._indexMovementType = new Map();
+    this._indexDocument = new Map();
+    this._indexBatch = new Map();
+    this._indexDepartment = new Map();
+    this._indexBarcode = new Map();
+    this._indexDate = new Map();
+
+    // Cached statistics (invalidated on load/clear)
+    this._statsCache = null;
+
+    this._logger = console; // TODO: inject logger
   }
 
   /**
-   * Load records into the repository and build indexes
-   * @param {Array} records - Array of MovementRecord objects
+   * Load records into the repository.
+   * Builds all indexes and invalidates cached statistics.
+   * @param {MovementRecord[]} records - Array of MovementRecord objects
    * @throws {Error} If records is not an array
    */
   load(records) {
@@ -47,525 +64,497 @@ class MovementRepository extends RepositoryInterface {
     }
 
     // Clear existing data
-    this.clear();
+    this._clearIndexes();
+    this._records = [];
+    this._statsCache = null;
 
-    // Store records
-    this._records = records;
+    // Store records and build indexes
+    for (const record of records) {
+      this._records.push(record);
+      this._indexRecord(record);
+    }
 
-    // Build indexes in a single pass
-    this._buildIndexes();
-
-    this._loaded = true;
-    console.log(`Repository loaded with ${this._records.length} records`);
+    this._logger.log(
+      `[MovementRepository] Loaded ${records.length} records`,
+    );
   }
 
   /**
-   * Build all indexes from records (single pass)
-   * @private
-   */
-  _buildIndexes() {
-    for (const record of this._records) {
-      // Date index (YYYY-MM-DD format)
-      if (record.date) {
-        const dateKey = this._formatDate(record.date);
-        this._addToIndex('date', dateKey, record);
-      }
-
-      // Operator index
-      if (record.operator) {
-        this._addToIndex('operator', record.operator, record);
-      }
-
-      // Article indexes
-      if (record.articleCode) {
-        this._addToIndex('article', record.articleCode, record);
-      }
-      if (record.articleName) {
-        this._addToIndex('articleName', record.articleName, record);
-      }
-
-      // Warehouse index
-      if (record.warehouse) {
-        this._addToIndex('warehouse', record.warehouse, record);
-      }
-
-      // Zone index
-      if (record.zone) {
-        this._addToIndex('zone', record.zone, record);
-      }
-
-      // Shelf index
-      if (record.shelf) {
-        this._addToIndex('shelf', record.shelf, record);
-      }
-
-      // Movement type index
-      if (record.movementType) {
-        this._addToIndex('movementType', record.movementType, record);
-      }
-
-      // Document index
-      if (record.document) {
-        this._addToIndex('document', record.document, record);
-      }
-
-      // Batch index
-      if (record.batch) {
-        this._addToIndex('batch', record.batch, record);
-      }
-
-      // Department index
-      if (record.department) {
-        this._addToIndex('department', record.department, record);
-      }
-
-      // Barcode index
-      if (record.barcode) {
-        this._addToIndex('barcode', record.barcode, record);
-      }
-    }
-  }
-
-  /**
-   * Add a record to a specific index
-   * @private
-   */
-  _addToIndex(indexName, key, record) {
-    const index = this._indexes[indexName];
-    if (!index.has(key)) {
-      index.set(key, []);
-    }
-    index.get(key).push(record);
-  }
-
-  /**
-   * Format date to YYYY-MM-DD string
-   * @private
-   */
-  _formatDate(date) {
-    if (typeof date === 'string') {
-      return date.substring(0, 10); // Assume already in YYYY-MM-DD or ISO format
-    }
-    if (date instanceof Date) {
-      return date.toISOString().substring(0, 10);
-    }
-    return String(date).substring(0, 10);
-  }
-
-  /**
-   * Parse date string to Date object
-   * @private
-   */
-  _parseDate(dateStr) {
-    if (dateStr instanceof Date) {
-      return dateStr;
-    }
-    return new Date(String(dateStr));
-  }
-
-  /**
-   * Clear all records and indexes
+   * Clear all records and indexes from the repository.
    */
   clear() {
     this._records = [];
-    this._loaded = false;
-
-    // Clear all indexes
-    for (const index of Object.values(this._indexes)) {
-      index.clear();
-    }
-
-    console.log('Repository cleared');
+    this._clearIndexes();
+    this._statsCache = null;
+    this._logger.log('[MovementRepository] Cleared');
   }
 
   /**
-   * Get total count of records
-   * @returns {number}
+   * Get total count of records.
+   * @returns {number} Total number of records
    */
   count() {
     return this._records.length;
   }
 
   /**
-   * Check if repository is loaded and has records
-   * @returns {boolean}
+   * Check if repository is loaded and has records.
+   * @returns {boolean} True if repository has records
    */
   exists() {
-    return this._loaded && this._records.length > 0;
+    return this._records.length > 0;
   }
 
   /**
-   * Get all records (shallow copy)
-   * @returns {Array}
+   * Get all records (new array).
+   * @returns {MovementRecord[]} Copy of all records
    */
   findAll() {
     return [...this._records];
   }
 
   /**
-   * Find records by date
-   * @param {string|Date} date - Date (YYYY-MM-DD or Date object)
-   * @returns {Array}
+   * Find records by exact date.
+   * @param {string|Date} date - Date to search (YYYY-MM-DD or Date object)
+   * @returns {MovementRecord[]} Records for that date
    */
   findByDate(date) {
-    const dateKey = this._formatDate(date);
-    const records = this._indexes.date.get(dateKey);
-    return records ? [...records] : [];
+    const dateStr = this._normalizeDate(date);
+    return this._indexDate.get(dateStr) ? [...this._indexDate.get(dateStr)] : [];
   }
 
   /**
-   * Find records between dates (inclusive)
+   * Find records between dates (inclusive).
    * @param {string|Date} start - Start date
    * @param {string|Date} end - End date
-   * @returns {Array}
+   * @returns {MovementRecord[]} Records in date range
    */
   findBetweenDates(start, end) {
-    const startDate = this._parseDate(start);
-    const endDate = this._parseDate(end);
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+    endDate.setHours(23, 59, 59, 999);
 
-    return this._records.filter(record => {
-      const recordDate = this._parseDate(record.date);
-      return recordDate >= startDate && recordDate <= endDate;
+    return this._records.filter((record) => {
+      if (!record.movementDate) return false;
+      return record.movementDate >= startDate && record.movementDate <= endDate;
     });
   }
 
   /**
-   * Find records by operator name
-   * @param {string} operator
-   * @returns {Array}
+   * Find records by operator name.
+   * @param {string} operator - Operator name
+   * @returns {MovementRecord[]} Records for operator
    */
   findByOperator(operator) {
-    const records = this._indexes.operator.get(operator);
-    return records ? [...records] : [];
+    return this._indexOperator.get(operator)
+      ? [...this._indexOperator.get(operator)]
+      : [];
   }
 
   /**
-   * Find records by article code
-   * @param {string} articleCode
-   * @returns {Array}
+   * Find records by article code.
+   * @param {string} articleCode - Article code
+   * @returns {MovementRecord[]} Records for article
    */
   findByArticle(articleCode) {
-    const records = this._indexes.article.get(articleCode);
-    return records ? [...records] : [];
+    return this._indexArticleCode.get(articleCode)
+      ? [...this._indexArticleCode.get(articleCode)]
+      : [];
   }
 
   /**
-   * Find records by article name
-   * @param {string} articleName
-   * @returns {Array}
+   * Find records by article name.
+   * @param {string} articleName - Article name
+   * @returns {MovementRecord[]} Records for article name
    */
   findByArticleName(articleName) {
-    const records = this._indexes.articleName.get(articleName);
-    return records ? [...records] : [];
+    return this._indexArticleName.get(articleName)
+      ? [...this._indexArticleName.get(articleName)]
+      : [];
   }
 
   /**
-   * Find records by warehouse
-   * @param {string} warehouse
-   * @returns {Array}
+   * Find records by warehouse.
+   * @param {string} warehouse - Warehouse name/code
+   * @returns {MovementRecord[]} Records for warehouse
    */
   findByWarehouse(warehouse) {
-    const records = this._indexes.warehouse.get(warehouse);
-    return records ? [...records] : [];
+    return this._indexWarehouse.get(warehouse)
+      ? [...this._indexWarehouse.get(warehouse)]
+      : [];
   }
 
   /**
-   * Find records by zone
-   * @param {string} zone
-   * @returns {Array}
+   * Find records by zone.
+   * @param {string} zone - Zone name/code
+   * @returns {MovementRecord[]} Records for zone
    */
   findByZone(zone) {
-    const records = this._indexes.zone.get(zone);
-    return records ? [...records] : [];
+    return this._indexZone.get(zone)
+      ? [...this._indexZone.get(zone)]
+      : [];
   }
 
   /**
-   * Find records by shelf
-   * @param {string} shelf
-   * @returns {Array}
+   * Find records by shelf.
+   * @param {string} shelf - Shelf name/code
+   * @returns {MovementRecord[]} Records for shelf
    */
   findByShelf(shelf) {
-    const records = this._indexes.shelf.get(shelf);
-    return records ? [...records] : [];
+    return this._indexShelf.get(shelf)
+      ? [...this._indexShelf.get(shelf)]
+      : [];
   }
 
   /**
-   * Find records by movement type
+   * Find records by movement type.
    * @param {string} type - Movement type (IN, OUT, ADJUST, etc.)
-   * @returns {Array}
+   * @returns {MovementRecord[]} Records of type
    */
   findByMovementType(type) {
-    const records = this._indexes.movementType.get(type);
-    return records ? [...records] : [];
+    return this._indexMovementType.get(type)
+      ? [...this._indexMovementType.get(type)]
+      : [];
   }
 
   /**
-   * Find records by document number
-   * @param {string|number} document
-   * @returns {Array}
+   * Find records by document number.
+   * @param {string|number} document - Document number
+   * @returns {MovementRecord[]} Records for document
    */
   findByDocument(document) {
-    const records = this._indexes.document.get(document);
-    return records ? [...records] : [];
+    const docStr = String(document);
+    return this._indexDocument.get(docStr)
+      ? [...this._indexDocument.get(docStr)]
+      : [];
   }
 
   /**
-   * Find records by batch code
-   * @param {string} batch
-   * @returns {Array}
+   * Find records by batch code.
+   * @param {string} batch - Batch code
+   * @returns {MovementRecord[]} Records for batch
    */
   findByBatch(batch) {
-    const records = this._indexes.batch.get(batch);
-    return records ? [...records] : [];
+    return this._indexBatch.get(batch)
+      ? [...this._indexBatch.get(batch)]
+      : [];
   }
 
   /**
-   * Find records by department
-   * @param {string} department
-   * @returns {Array}
+   * Find records by department.
+   * @param {string} department - Department name/code
+   * @returns {MovementRecord[]} Records for department
    */
   findByDepartment(department) {
-    const records = this._indexes.department.get(department);
-    return records ? [...records] : [];
+    return this._indexDepartment.get(department)
+      ? [...this._indexDepartment.get(department)]
+      : [];
   }
 
   /**
-   * Find records by barcode
-   * @param {string} barcode
-   * @returns {Array}
+   * Find records by barcode.
+   * @param {string} barcode - Product barcode
+   * @returns {MovementRecord[]} Records for barcode
    */
   findByBarcode(barcode) {
-    const records = this._indexes.barcode.get(barcode);
-    return records ? [...records] : [];
+    return this._indexBarcode.get(barcode)
+      ? [...this._indexBarcode.get(barcode)]
+      : [];
   }
 
   /**
-   * Group records by operator, returning count map
-   * @returns {Map} Map of operator -> count
+   * Group records by operator, returning counts.
+   * @returns {Map<string, number>} Map of operator -> count
    */
   groupByOperator() {
-    const grouped = new Map();
-    for (const [operator, records] of this._indexes.operator.entries()) {
-      grouped.set(operator, records.length);
+    const result = new Map();
+    for (const [key, records] of this._indexOperator.entries()) {
+      result.set(key, records.length);
     }
-    return grouped;
+    return result;
   }
 
   /**
-   * Group records by article, returning count map
-   * @returns {Map} Map of article -> count
+   * Group records by article, returning counts.
+   * @returns {Map<string, number>} Map of article -> count
    */
   groupByArticle() {
-    const grouped = new Map();
-    for (const [article, records] of this._indexes.article.entries()) {
-      grouped.set(article, records.length);
+    const result = new Map();
+    for (const [key, records] of this._indexArticleCode.entries()) {
+      result.set(key, records.length);
     }
-    return grouped;
+    return result;
   }
 
   /**
-   * Group records by zone, returning count map
-   * @returns {Map} Map of zone -> count
+   * Group records by zone, returning counts.
+   * @returns {Map<string, number>} Map of zone -> count
    */
   groupByZone() {
-    const grouped = new Map();
-    for (const [zone, records] of this._indexes.zone.entries()) {
-      grouped.set(zone, records.length);
+    const result = new Map();
+    for (const [key, records] of this._indexZone.entries()) {
+      result.set(key, records.length);
     }
-    return grouped;
+    return result;
   }
 
   /**
-   * Group records by warehouse, returning count map
-   * @returns {Map} Map of warehouse -> count
+   * Group records by warehouse, returning counts.
+   * @returns {Map<string, number>} Map of warehouse -> count
    */
   groupByWarehouse() {
-    const grouped = new Map();
-    for (const [warehouse, records] of this._indexes.warehouse.entries()) {
-      grouped.set(warehouse, records.length);
+    const result = new Map();
+    for (const [key, records] of this._indexWarehouse.entries()) {
+      result.set(key, records.length);
     }
-    return grouped;
+    return result;
   }
 
   /**
-   * Group records by shelf, returning count map
-   * @returns {Map} Map of shelf -> count
+   * Group records by shelf, returning counts.
+   * @returns {Map<string, number>} Map of shelf -> count
    */
   groupByShelf() {
-    const grouped = new Map();
-    for (const [shelf, records] of this._indexes.shelf.entries()) {
-      grouped.set(shelf, records.length);
+    const result = new Map();
+    for (const [key, records] of this._indexShelf.entries()) {
+      result.set(key, records.length);
     }
-    return grouped;
+    return result;
   }
 
   /**
-   * Group records by department, returning count map
-   * @returns {Map} Map of department -> count
+   * Group records by department, returning counts.
+   * @returns {Map<string, number>} Map of department -> count
    */
   groupByDepartment() {
-    const grouped = new Map();
-    for (const [department, records] of this._indexes.department.entries()) {
-      grouped.set(department, records.length);
+    const result = new Map();
+    for (const [key, records] of this._indexDepartment.entries()) {
+      result.set(key, records.length);
     }
-    return grouped;
+    return result;
   }
 
   /**
-   * Group records by movement type, returning count map
-   * @returns {Map} Map of type -> count
+   * Group records by movement type, returning counts.
+   * @returns {Map<string, number>} Map of type -> count
    */
   groupByMovementType() {
-    const grouped = new Map();
-    for (const [type, records] of this._indexes.movementType.entries()) {
-      grouped.set(type, records.length);
+    const result = new Map();
+    for (const [key, records] of this._indexMovementType.entries()) {
+      result.set(key, records.length);
     }
-    return grouped;
+    return result;
   }
 
   /**
-   * Get statistics about the repository
-   * @returns {Object} Statistics object
+   * Get statistics about the repository.
+   * @returns {Object} Statistics object with key metrics
    */
   getStatistics() {
-    const stats = {
-      totalRecords: this._records.length,
-      totalArticles: this._indexes.article.size,
-      totalOperators: this._indexes.operator.size,
-      totalZones: this._indexes.zone.size,
-      totalWarehouses: this._indexes.warehouse.size,
-      totalShelves: this._indexes.shelf.size,
-      totalDepartments: this._indexes.department.size,
-      totalMovementTypes: this._indexes.movementType.size,
-      firstMovement: null,
-      lastMovement: null,
-    };
-
-    if (this._records.length > 0) {
-      // Find first and last movement dates
-      let firstDate = this._parseDate(this._records[0].date);
-      let lastDate = firstDate;
-
-      for (const record of this._records) {
-        const recordDate = this._parseDate(record.date);
-        if (recordDate < firstDate) firstDate = recordDate;
-        if (recordDate > lastDate) lastDate = recordDate;
-      }
-
-      stats.firstMovement = firstDate.toISOString().substring(0, 10);
-      stats.lastMovement = lastDate.toISOString().substring(0, 10);
+    // Return cached stats if available
+    if (this._statsCache) {
+      return { ...this._statsCache };
     }
 
-    console.log('Statistics calculated');
+    const stats = {
+      totalRecords: this._records.length,
+      totalArticles: this._indexArticleCode.size,
+      totalOperators: this._indexOperator.size,
+      totalZones: this._indexZone.size,
+      totalWarehouses: this._indexWarehouse.size,
+      totalShelves: this._indexShelf.size,
+      totalDepartments: this._indexDepartment.size,
+      firstMovement: this._records.length > 0
+        ? this._records[0].movementDate
+        : null,
+      lastMovement: this._records.length > 0
+        ? this._records[this._records.length - 1].movementDate
+        : null,
+    };
+
+    // Cache stats
+    this._statsCache = { ...stats };
+
+    this._logger.log('[MovementRepository] Statistics calculated');
+
     return stats;
   }
 
   /**
-   * Get top N articles by frequency
-   * @param {number} limit - Number of items to return
-   * @returns {Array} Array of {key, count} objects sorted by count desc
+   * Get top N items by frequency for articles.
+   * @param {number} limit - Number of top items to return
+   * @returns {Array<{key: string, count: number}>} Array sorted by count descending
    */
   topArticles(limit = 10) {
-    return this._getTopItems(this._indexes.article, limit);
+    return this._topFromIndex(this._indexArticleCode, limit);
   }
 
   /**
-   * Get top N operators by frequency
-   * @param {number} limit - Number of items to return
-   * @returns {Array} Array of {key, count} objects sorted by count desc
+   * Get top N items by frequency for operators.
+   * @param {number} limit - Number of top items to return
+   * @returns {Array<{key: string, count: number}>} Array sorted by count descending
    */
   topOperators(limit = 10) {
-    return this._getTopItems(this._indexes.operator, limit);
+    return this._topFromIndex(this._indexOperator, limit);
   }
 
   /**
-   * Get top N zones by frequency
-   * @param {number} limit - Number of items to return
-   * @returns {Array} Array of {key, count} objects sorted by count desc
+   * Get top N items by frequency for zones.
+   * @param {number} limit - Number of top items to return
+   * @returns {Array<{key: string, count: number}>} Array sorted by count descending
    */
   topZones(limit = 10) {
-    return this._getTopItems(this._indexes.zone, limit);
+    return this._topFromIndex(this._indexZone, limit);
   }
 
   /**
-   * Get top N warehouses by frequency
-   * @param {number} limit - Number of items to return
-   * @returns {Array} Array of {key, count} objects sorted by count desc
+   * Get top N items by frequency for warehouses.
+   * @param {number} limit - Number of top items to return
+   * @returns {Array<{key: string, count: number}>} Array sorted by count descending
    */
   topWarehouses(limit = 10) {
-    return this._getTopItems(this._indexes.warehouse, limit);
+    return this._topFromIndex(this._indexWarehouse, limit);
   }
 
   /**
-   * Get top N shelves by frequency
-   * @param {number} limit - Number of items to return
-   * @returns {Array} Array of {key, count} objects sorted by count desc
+   * Get top N items by frequency for shelves.
+   * @param {number} limit - Number of top items to return
+   * @returns {Array<{key: string, count: number}>} Array sorted by count descending
    */
   topShelves(limit = 10) {
-    return this._getTopItems(this._indexes.shelf, limit);
+    return this._topFromIndex(this._indexShelf, limit);
   }
 
   /**
-   * Helper to get top N items from any index
+   * Full-text search across multiple fields.
+   * Searches: article, operator, document, batch, code, barcode.
+   * @param {string} text - Search text
+   * @returns {MovementRecord[]} Records matching search
+   */
+  search(text) {
+    if (!text || typeof text !== 'string') return [];
+
+    const searchLower = text.toLowerCase();
+    const results = [];
+    const seen = new Set();
+
+    for (const record of this._records) {
+      const recordId = `${record.articleCode}_${record.operator}_${record.documentNumber}_${record.batch}`;
+      if (seen.has(recordId)) continue;
+
+      const matches =
+        (record.articleCode && record.articleCode.toLowerCase().includes(searchLower)) ||
+        (record.articleName && record.articleName.toLowerCase().includes(searchLower)) ||
+        (record.operator && record.operator.toLowerCase().includes(searchLower)) ||
+        (record.documentNumber && String(record.documentNumber).toLowerCase().includes(searchLower)) ||
+        (record.batch && record.batch.toLowerCase().includes(searchLower)) ||
+        (record.barcode && record.barcode.toLowerCase().includes(searchLower));
+
+      if (matches) {
+        results.push(record);
+        seen.add(recordId);
+      }
+    }
+
+    this._logger.log(
+      `[MovementRepository] Search executed for "${text}" found ${results.length} results`,
+    );
+
+    return results;
+  }
+
+  // ===== PRIVATE METHODS =====
+
+  /**
+   * Index a single record into all indexes.
    * @private
    */
-  _getTopItems(index, limit) {
-    const items = [];
+  _indexRecord(record) {
+    this._addToIndex(this._indexOperator, record.operator, record);
+    this._addToIndex(this._indexArticleCode, record.articleCode, record);
+    this._addToIndex(this._indexArticleName, record.articleName, record);
+    this._addToIndex(this._indexWarehouse, record.warehouse, record);
+    this._addToIndex(this._indexZone, record.zone, record);
+    this._addToIndex(this._indexShelf, record.shelf, record);
+    this._addToIndex(this._indexMovementType, record.movementType, record);
+    this._addToIndex(this._indexDocument, String(record.documentNumber), record);
+    this._addToIndex(this._indexBatch, record.batch, record);
+    this._addToIndex(this._indexDepartment, record.department, record);
+    this._addToIndex(this._indexBarcode, record.barcode, record);
+
+    // Index by date string (YYYY-MM-DD)
+    if (record.movementDate) {
+      const dateStr = this._normalizeDate(record.movementDate);
+      this._addToIndex(this._indexDate, dateStr, record);
+    }
+  }
+
+  /**
+   * Add a record to a specific index.
+   * @private
+   */
+  _addToIndex(index, key, record) {
+    if (key === null || key === undefined) return;
+
+    const keyStr = String(key);
+    if (!index.has(keyStr)) {
+      index.set(keyStr, []);
+    }
+    index.get(keyStr).push(record);
+  }
+
+  /**
+   * Clear all indexes.
+   * @private
+   */
+  _clearIndexes() {
+    this._indexOperator.clear();
+    this._indexArticleCode.clear();
+    this._indexArticleName.clear();
+    this._indexWarehouse.clear();
+    this._indexZone.clear();
+    this._indexShelf.clear();
+    this._indexMovementType.clear();
+    this._indexDocument.clear();
+    this._indexBatch.clear();
+    this._indexDepartment.clear();
+    this._indexBarcode.clear();
+    this._indexDate.clear();
+  }
+
+  /**
+   * Normalize date to YYYY-MM-DD format.
+   * @private
+   */
+  _normalizeDate(date) {
+    if (typeof date === 'string') {
+      return date.split('T')[0]; // Remove time component
+    }
+    if (date instanceof Date) {
+      return date.toISOString().split('T')[0];
+    }
+    return null;
+  }
+
+  /**
+   * Extract top N items from an index by frequency.
+   * @private
+   */
+  _topFromIndex(index, limit = 10) {
+    const result = [];
+
     for (const [key, records] of index.entries()) {
-      items.push({
+      result.push({
         key,
         count: records.length,
       });
     }
 
-    // Sort by count descending and limit
-    return items
-      .sort((a, b) => b.count - a.count)
-      .slice(0, limit);
-  }
+    // Sort by count descending
+    result.sort((a, b) => b.count - a.count);
 
-  /**
-   * Full-text search across multiple fields
-   * Searches: articleCode, articleName, operator, document, batch, barcode
-   * @param {string} text - Search text
-   * @returns {Array} Matching records
-   */
-  search(text) {
-    if (!text || typeof text !== 'string') {
-      return [];
-    }
-
-    const searchText = text.toLowerCase();
-    const results = [];
-    const seen = new Set();
-
-    // Search in each index
-    const indexesToSearch = [
-      this._indexes.article,
-      this._indexes.articleName,
-      this._indexes.operator,
-      this._indexes.document,
-      this._indexes.batch,
-      this._indexes.barcode,
-    ];
-
-    for (const index of indexesToSearch) {
-      for (const [key, records] of index.entries()) {
-        if (String(key).toLowerCase().includes(searchText)) {
-          for (const record of records) {
-            // Use record reference as unique identifier
-            const recordId = this._records.indexOf(record);
-            if (!seen.has(recordId)) {
-              seen.add(recordId);
-              results.push(record);
-            }
-          }
-        }
-      }
-    }
-
-    console.log(`Search executed: "${text}" - ${results.length} results`);
-    return results;
+    // Return top N
+    return result.slice(0, limit);
   }
 }
 
